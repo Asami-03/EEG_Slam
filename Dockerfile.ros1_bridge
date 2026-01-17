@@ -1,0 +1,52 @@
+FROM ros:humble-ros-base-jammy
+
+SHELL ["/bin/bash", "-c"]
+
+# 基础依赖
+RUN apt-get update && apt-get install -y \
+    python3-pip python3-rosdep python3-vcstool \
+    git curl wget build-essential cmake \
+    python3-rosinstall-generator python3-wstool \
+    libboost-all-dev libconsole-bridge-dev \
+    libtinyxml2-dev liblz4-dev libbz2-dev \
+    libpoco-dev libeigen3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 初始化 rosdep
+RUN rosdep init || true && rosdep update
+
+# ========= 1) 在 Jammy 上从源码装 ROS1 Noetic =========
+RUN mkdir -p /opt/ros1_noetic_ws/src
+WORKDIR /opt/ros1_noetic_ws
+
+# 拉 ROS1 noetic 的基础仓库（ros_comm + 常用消息）
+RUN rosinstall_generator ros_comm std_msgs sensor_msgs geometry_msgs nav_msgs tf2_msgs rosgraph_msgs --rosdistro noetic --deps --tar > noetic.rosinstall \
+ && wstool init -j4 src noetic.rosinstall
+
+# 装依赖并编译 ROS1
+RUN rosdep install -y --from-paths src --ignore-src --rosdistro noetic || true \
+ && ./src/catkin/bin/catkin_make_isolated --install -DCMAKE_BUILD_TYPE=Release
+
+# ========= 2) 编译 ros1_bridge（ROS2+ROS1 同环境） =========
+RUN mkdir -p /opt/ros1_bridge_ws/src
+WORKDIR /opt/ros1_bridge_ws/src
+RUN git clone -b humble https://github.com/ros2/ros1_bridge.git
+
+WORKDIR /opt/ros1_bridge_ws
+RUN source /opt/ros/humble/setup.bash \
+ && source /opt/ros1_noetic_ws/install_isolated/setup.bash \
+ && rosdep install -y --from-paths src --ignore-src || true \
+ && colcon build --symlink-install --cmake-force-configure
+
+# 创建启动脚本
+RUN echo '#!/bin/bash' > /start_bridge.sh \
+ && echo 'source /opt/ros/humble/setup.bash' >> /start_bridge.sh \
+ && echo 'source /opt/ros1_noetic_ws/install_isolated/setup.bash' >> /start_bridge.sh \
+ && echo 'source /opt/ros1_bridge_ws/install/setup.bash' >> /start_bridge.sh \
+ && echo 'export ROS_MASTER_URI=http://127.0.0.1:11311' >> /start_bridge.sh \
+ && echo 'export ROS_IP=127.0.0.1' >> /start_bridge.sh \
+ && echo 'ros2 run ros1_bridge dynamic_bridge --bridge-all-topics' >> /start_bridge.sh \
+ && chmod +x /start_bridge.sh
+
+WORKDIR /root
+CMD ["/bin/bash"]
