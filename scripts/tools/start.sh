@@ -114,6 +114,17 @@ else
     echo "   ✅ Livox SDK 已就绪"
 fi
 
+# 2.6 确保 usb_cam 已安装（容器重建后需要重新安装）
+echo ""
+echo "🔧 检查 usb_cam..."
+if ! in_container "dpkg -l | grep -q ros-noetic-usb-cam"; then
+    echo "   安装 usb_cam..."
+    in_container "apt-get update > /dev/null 2>&1 && apt-get install -y ros-noetic-usb-cam > /dev/null 2>&1"
+    echo "   ✅ usb_cam 已安装"
+else
+    echo "   ✅ usb_cam 已就绪"
+fi
+
 # 3. 启动roscore
 echo ""
 echo "🏁 确保ROS核心运行..."

@@ -26,7 +26,7 @@ else
         -v $HOME/vir_slam_docker/catkin_ws_logs:/root/catkin_ws/logs \
         -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
         -v $HOME/vir_slam_docker:/host \
-        -v $HOME/vir_slam_output:/root/vir_slam_output \
+        -v $HOME/vir_slam_output:/home/vir_slam_output \
         -e DISPLAY=$DISPLAY \
         -e QT_X11_NO_MITSHM=1 \
         $IMAGE_NAME \
